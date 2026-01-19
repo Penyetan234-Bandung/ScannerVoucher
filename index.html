@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanner Kasir - Penyetan 234</title>
+    
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon/favicon-16x16.png">
+    <link rel="manifest" href="favicon/site.webmanifest">
+    <meta name="theme-color" content="#1a1a2e">
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+</head>
+<body>
+
+<header>
+    <h1>PENYETAN 234 KASIR</h1>
+</header>
+
+<div id="scanner-container">
+    <div id="reader"></div>
+</div>
+
+<div class="loader" id="loader"></div>
+
+<div id="resultOverlay" class="result-overlay">
+    <div class="status-card">
+        <div id="statusIcon" class="status-icon"></div>
+        <h2 id="statusTitle" style="margin: 0 0 10px 0;"></h2>
+        <p id="statusDesc" style="color: #bdc3c7; line-height: 1.5;"></p>
+        <button class="btn-retry" onclick="resetScanner()">SCAN LAGI</button>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC7866dbjNQ8OHTjrDF2jZ5f3YMv9qr2J8",
+        authDomain: "voucher-bd27b.firebaseapp.com",
+        projectId: "voucher-bd27b",
+        storageBucket: "voucher-bd27b.firebasestorage.app",
+        messagingSenderId: "1007412691909",
+        appId: "1:1007412691909:web:5ad589ec4ae6aa2bfc81ac"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const overlay = document.getElementById('resultOverlay');
+    const loader = document.getElementById('loader');
+
+    async function onScanSuccess(decodedText) {
+        html5QrcodeScanner.pause();
+        loader.style.display = "block";
+
+        try {
+            const docRef = doc(db, "vouchers", decodedText);
+            const docSnap = await getDoc(docRef);
+
+            loader.style.display = "none";
+            overlay.style.display = "flex";
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const sekarang = new Date();
+                const tglExpired = data.expiresAt.toDate(); // Konversi timestamp ke Date
+
+                if (sekarang > tglExpired) {
+                    showStatus("⏰", "KEDALUWARSA", "Voucher sudah melewati batas 7 hari.", "var(--danger)");
+                } else if (data.status === "tersedia") {
+                    await updateDoc(docRef, { 
+                        status: "terpakai", 
+                        usedAt: serverTimestamp() 
+                    });
+                    showStatus("✅", "VALID!", `Voucher ${decodedText} berhasil diklaim.`, "var(--success)");
+                } else {
+                    showStatus("❌", "SUDAH TERPAKAI", "Voucher ini tidak bisa digunakan lagi.", "var(--danger)");
+                }
+            } else {
+                showStatus("❓", "TIDAK ADA", "Kode voucher tidak terdaftar.", "var(--warning)");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Gagal terhubung ke database!");
+            resetScanner();
+        }
+    }
+
+    function showStatus(icon, title, desc, color) {
+        document.getElementById('statusIcon').innerText = icon;
+        document.getElementById('statusTitle').innerText = title;
+        document.getElementById('statusTitle').style.color = color;
+        document.getElementById('statusDesc').innerText = desc;
+    }
+
+    window.resetScanner = function() {
+        overlay.style.display = "none";
+        html5QrcodeScanner.resume();
+    }
+
+    const html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+        fps: 20, 
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true
+    });
+    
+    html5QrcodeScanner.render(onScanSuccess);
+
+    // Registrasi PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js');
+    }
+</script>
+
+</body>
+</html>
