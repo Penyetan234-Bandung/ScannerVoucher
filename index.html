@@ -105,11 +105,15 @@
         html5QrcodeScanner.resume();
     }
 
-    const html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 },
-        rememberLastUsedCamera: true
-    });
+    const html5QrcodeScanner = new Html5QrcodeScanner("reader", {
+    fps: 20,
+    qrbox: { width: 250, height: 250 },
+    // Tambahkan baris ini untuk memaksa kamera belakang
+    videoConstraints: {
+        facingMode: { exact: "environment" }
+    },
+    rememberLastUsedCamera: true
+});
     
     html5QrcodeScanner.render(onScanSuccess);
 
